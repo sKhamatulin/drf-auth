@@ -9,8 +9,11 @@ SECRET_KEY = 'django-insecure-q0bp(*5pleb5&po@_cutbi!)qsbbgez2ofhvqu0pt9f!9yr3hb
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'www.intizar.pythonanywhere.com',
+    'intizar.pythonanywhere.com'
+]
 
 # Application definition
 
@@ -41,7 +44,7 @@ ROOT_URLCONF = 'drf_auth.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -58,7 +61,7 @@ WSGI_APPLICATION = 'drf_auth.wsgi.application'
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', 
+        'rest_framework.permissions.IsAuthenticated',
     ],
 
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -69,7 +72,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
    'AUTH_HEADER_TYPES': ('Bearer',)
-} 
+}
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
