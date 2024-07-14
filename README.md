@@ -1,13 +1,13 @@
-## API for auth testing
-https://intizar.pythonanywhere.com/
+## API for auth testing  
+https://intizar.pythonanywhere.com/  
 
-2 tokens (access token and refresh token)
+2 tokens (access token and refresh token)  
 
-admin panel = https://intizar.pythonanywhere.com/admin
-admin account = `{"admin": "admin"}`
-documentation = https://intizar.pythonanywhere.com/redoc/
+admin panel = https://intizar.pythonanywhere.com/admin  
+admin account = `{"admin": "admin"}`  
+documentation = https://intizar.pythonanywhere.com/redoc/  
 
-for other API methods use https://intizar.pythonanywhere.com/api/v1/{method}
+for other API methods use https://intizar.pythonanywhere.com/api/v1/{method}  
 
 ```js
 user_1 = {
