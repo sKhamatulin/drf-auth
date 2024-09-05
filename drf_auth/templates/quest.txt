@@ -118,6 +118,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+DJOSER = {
+    'SERIALIZERS': {
+        'user_create': 'api.serializers.UserCreateSerializer',
+        'user': 'api.serializers.UserSerializer',
+        'current_user': 'api.serializers.UserSerializer', 
+    }
+}
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
@@ -143,6 +151,7 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'user.CustomUser'
+
 
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/drf_auth/urls.py
 from django.contrib import admin
@@ -176,45 +185,66 @@ urlpatterns = [
          name='schema-redoc'),
 ]
 
+
 2.api
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/serializers.py
 from rest_framework import serializers
-
+from djoser.serializers import UserCreateSerializer as BaseUserCreateSerializer
 from user.models import CustomUser
 
 
 class UserSerializer(serializers.ModelSerializer):
-
     class Meta:
+        model = CustomUser
+        fields = ('id', 'email', 'username', 'contactId')
+        ref_name = 'CustomUserSerializer'
+
+
+class UserCreateSerializer(BaseUserCreateSerializer):
+    class Meta(BaseUserCreateSerializer.Meta):
         model = CustomUser
         fields = ('id', 'email', 'username', 'password', 'contactId')
         extra_kwargs = {
             'contactId': {'required': True},
             'password': {'write_only': True}
         }
+        ref_name = 'CustomUserCreateSerializer'
 
 
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/urls.py
-from django.urls import path
-from django.urls import include
-from .views import AuthStatusView
+from django.urls import path, include
+from .views import AuthStatusView, UserViewSet
+from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
 
+router = DefaultRouter()
+router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
     path('v1/auth/', include('djoser.urls')),
     path('v1/auth/', include('djoser.urls.jwt')),
-    path('v1/auth/status/', AuthStatusView.as_view(), name='auth-status')
+    path('v1/auth/status/',
+         AuthStatusView.as_view(),
+         name='auth-status'),
+    path('v1/auth/me/',
+         UserViewSet.as_view({'get': 'retrieve'}),
+         name='user-me'),
+    path('', include(router.urls)),
 ]
+
 
 
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/views.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from djoser.views import UserViewSet as BaseUserViewSet
+
 from django.http import HttpResponse
 import yaml
+
+from .serializers import UserSerializer
 
 
 class AuthStatusView(APIView):
@@ -222,6 +252,11 @@ class AuthStatusView(APIView):
 
     def get(self, request):
         return Response({'is_authenticated': True})
+
+
+class UserViewSet(BaseUserViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
 
 def schema_view(request):
@@ -233,12 +268,8 @@ def schema_view(request):
 
 3.user
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/user/models.py
-# from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-
-
-# User = get_user_model()
 
 
 class CustomUser(AbstractUser):
@@ -248,7 +279,7 @@ class CustomUser(AbstractUser):
 
 
                                 
-                                 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/user/admin.py                                 
+/Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/user/admin.py                                 
 from django.contrib import admin
 from .models import CustomUser
 
@@ -262,14 +293,4 @@ class CustomUserAdmin(admin.ModelAdmin):
 
 admin.site.register(CustomUser, CustomUserAdmin)
 
-
-
-Почему поле cintactId не является обязательным при регистарции пользователя с помощью
-POST http://127.0.0.1:8000/api/v1/auth/users/
-
-а также не сохраняется в соответсвующее поле при попытке зарегистрировать пользователя со следующим json
-{
-    "username": "test1",
-    "password": "testing1488",
-    "contactId": "348"
-}
+Почему в swagger по адресу /redoc присутсвуют метод updateUser но он по факту не недоступен. Что исправить в коде, чтобы swager генерировался верно?

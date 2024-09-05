@@ -6,8 +6,8 @@ from user.models import CustomUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ('id', 'email', 'username', 'contactId')  # Не включайте пароль здесь
-        ref_name = 'CustomUserSerializer'  # Уникальное имя для этого сериализатора
+        fields = ('id', 'email', 'username', 'contactId')
+        ref_name = 'CustomUserSerializer'
 
 
 class UserCreateSerializer(BaseUserCreateSerializer):
@@ -18,4 +18,4 @@ class UserCreateSerializer(BaseUserCreateSerializer):
             'contactId': {'required': True},
             'password': {'write_only': True}
         }
-        ref_name = 'CustomUserCreateSerializer'  # Уникальное имя для этого сериализатора
+        ref_name = 'CustomUserCreateSerializer'

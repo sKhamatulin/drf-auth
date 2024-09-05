@@ -1,8 +1,12 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from djoser.views import UserViewSet as BaseUserViewSet
+
 from django.http import HttpResponse
 import yaml
+
+from .serializers import UserSerializer
 
 
 class AuthStatusView(APIView):
@@ -10,6 +14,11 @@ class AuthStatusView(APIView):
 
     def get(self, request):
         return Response({'is_authenticated': True})
+
+
+class UserViewSet(BaseUserViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
 
 def schema_view(request):
