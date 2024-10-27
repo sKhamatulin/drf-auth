@@ -213,7 +213,8 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/urls.py
 from django.urls import path, include
-from .views import AuthStatusView, UserViewSet
+from .views import (AuthStatusView, UserViewSet, UserContactView,
+                    UserManagerView, UserCompaniesView, UserCompanyDetailsView)
 from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
@@ -222,20 +223,32 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
-    path('v1/auth/', include('djoser.urls')),
-    path('v1/auth/', include('djoser.urls.jwt')),
-    path('v1/auth/status/',
-         AuthStatusView.as_view(),
-         name='auth-status'),
-    path('v1/auth/me/',
-         UserViewSet.as_view({'get': 'retrieve'}),
-         name='user-me'),
-    path('', include(router.urls)),
+     path('v1/auth/', include('djoser.urls')),
+     path('v1/auth/', include('djoser.urls.jwt')),
+     path('v1/auth/status/',
+          AuthStatusView.as_view(),
+          name='auth-status'),
+     path('v1/auth/me/',
+          UserViewSet.as_view({'get': 'retrieve'}),
+          name='user-me'),
+     path('v1/hooks/users_me_contact/',
+          UserContactView.as_view(),
+          name='user-contact'),
+     path('v1/hooks/users_me_manager/',
+          UserManagerView.as_view(),
+          name='user-manager'),
+     path('v1/hooks/company_list/',
+          UserCompaniesView.as_view(),
+          name='company-list'),
+     path('v1/hooks/user_me_company/',
+          UserCompanyDetailsView.as_view(),
+          name='user-company-details'),
+     path('', include(router.urls)),
 ]
 
-
-
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/views.py
+import requests
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -245,6 +258,176 @@ from django.http import HttpResponse
 import yaml
 
 from .serializers import UserSerializer
+
+
+WEBHOOK_TOKEN = 'tuzwh9ecszs0jhhc'
+B24_USER_ID = '7'
+
+
+class UserContactView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if not user.contactId:
+            return Response({'error': 'contactId not found.'}, status=400)
+
+        contact_id = user.contactId
+        # contact_id = 7
+
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={contact_id}'
+
+        response = requests.get(url)
+
+        data = response.json().get('result', {})
+
+        filtered_data = {
+            'ID': data.get('ID'),
+            'NAME': data.get('NAME'),
+            'SECOND_NAME': data.get('SECOND_NAME'),
+            'LAST_NAME': data.get('LAST_NAME'),
+            'LEAD_ID': data.get('LEAD_ID'),
+            'TYPE_ID': data.get('TYPE_ID'),
+            'BIRTHDATE': data.get('BIRTHDATE'),
+            'HAS_PHONE': data.get('HAS_PHONE'),
+            'HAS_EMAIL': data.get('HAS_EMAIL'),
+            'HAS_IMOL': data.get('HAS_IMOL'),
+            'DATE_CREATE': data.get('DATE_CREATE'),
+            'DATE_MODIFY': data.get('DATE_MODIFY'),
+            'ASSIGNED_BY_ID': data.get('ASSIGNED_BY_ID'),
+            'LAST_ACTIVITY_TIME': data.get('LAST_ACTIVITY_TIME'),
+            'ADDRESS': data.get('ADDRESS'),
+            'ADDRESS_2': data.get('ADDRESS_2'),
+            'ADDRESS_CITY': data.get('ADDRESS_CITY'),
+            'ADDRESS_POSTAL_CODE': data.get('ADDRESS_POSTAL_CODE'),
+            'ADDRESS_REGION': data.get('ADDRESS_REGION'),
+            'ADDRESS_PROVINCE': data.get('ADDRESS_PROVINCE'),
+            'ADDRESS_COUNTRY': data.get('ADDRESS_COUNTRY'),
+            'ADDRESS_LOC_ADDR_ID': data.get('ADDRESS_LOC_ADDR_ID'),
+            'LAST_ACTIVITY_BY': data.get('LAST_ACTIVITY_BY'),
+        }
+
+        return Response({'result': filtered_data}, status=response.status_code)
+
+
+class UserManagerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_contact_view = UserContactView()
+        data = user_contact_view.get(request).data
+        assigned_by_id = data.get('result', {}).get('ASSIGNED_BY_ID')
+
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={assigned_by_id}'
+
+        response = requests.get(url)
+
+        response_data = response.json().get('result', [])
+
+        filtered_results = []
+        
+        for item in response_data:
+            filtered_item = {
+                'ID': item.get('ID'),
+                'ACTIVE': item.get('ACTIVE'),
+                'NAME': item.get('NAME'),
+                'LAST_NAME': item.get('LAST_NAME'),
+                'SECOND_NAME': item.get('SECOND_NAME'),
+                'TITLE': item.get('TITLE'),
+                'IS_ONLINE': item.get('IS_ONLINE'),
+                'PERSONAL_PROFESSION': item.get('PERSONAL_PROFESSION'),
+                'PERSONAL_GENDER': item.get('PERSONAL_GENDER'),
+                'PERSONAL_BIRTHDAY': item.get('PERSONAL_BIRTHDAY'),
+                'PERSONAL_CITY': item.get('PERSONAL_CITY'),
+                'PERSONAL_STATE': item.get('PERSONAL_STATE'),
+                'UF_EMPLOYMENT_DATE': item.get('UF_EMPLOYMENT_DATE'),
+                'UF_DEPARTMENT': item.get('UF_DEPARTMENT'),
+            }
+            filtered_results.append(filtered_item)
+
+        return Response({'result': filtered_results,
+                         'total': len(filtered_results)},
+                        status=response.status_code)
+
+
+class UserCompaniesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_contact_view = UserContactView()
+        data = user_contact_view.get(request).data
+        user_id = data.get('result', {}).get('ID')
+
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.company.items.get.json?id={user_id}'
+
+        response = requests.get(url)
+
+        return Response(response.json(), status=response.status_code)
+
+
+class UserCompanyDetailsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_companies_view = UserCompaniesView()
+        companies_response = user_companies_view.get(request)
+        company_id_list = [company['COMPANY_ID'] for company in
+                           companies_response.data.get('result', [])]
+        company_details_list = []
+
+        for company_id in company_id_list:
+            url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.company.get.json?id={company_id}'
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                company_data = response.json().get('result', {})
+                
+                filtered_company_data = {
+                    'COMPANY_TYPE': company_data.get('COMPANY_TYPE'),
+                    'TITLE': company_data.get('TITLE'),
+                    'LOGO': company_data.get('LOGO'),
+                    'LEAD_ID': company_data.get('LEAD_ID'),
+                    'HAS_PHONE': company_data.get('HAS_PHONE'),
+                    'HAS_EMAIL': company_data.get('HAS_EMAIL'),
+                    'HAS_IMOL': company_data.get('HAS_IMOL'),
+                    'BANKING_DETAILS': company_data.get('BANKING_DETAILS'),
+                    'INDUSTRY': company_data.get('INDUSTRY'),
+                    'REVENUE': company_data.get('REVENUE'),
+                    'CURRENCY_ID': company_data.get('CURRENCY_ID'),
+                    'EMPLOYEES': company_data.get('EMPLOYEES'),
+                    'OPENED': company_data.get('OPENED'),
+                    'IS_MY_COMPANY': company_data.get('IS_MY_COMPANY'),
+                    'LAST_ACTIVITY_TIME': company_data.get('LAST_ACTIVITY_TIME'),
+                    'ADDRESS': company_data.get('ADDRESS'),
+                    'ADDRESS_2': company_data.get('ADDRESS_2'),
+                    'ADDRESS_CITY': company_data.get('ADDRESS_CITY'),
+                    'ADDRESS_POSTAL_CODE': company_data.get('ADDRESS_POSTAL_CODE'),
+                    'ADDRESS_REGION': company_data.get('ADDRESS_REGION'),
+                    'ADDRESS_PROVINCE': company_data.get('ADDRESS_PROVINCE'),
+                    'ADDRESS_COUNTRY': company_data.get('ADDRESS_COUNTRY'),
+                    'ADDRESS_COUNTRY_CODE': company_data.get('ADDRESS_COUNTRY_CODE'),
+                    'ADDRESS_LOC_ADDR_ID': company_data.get('ADDRESS_LOC_ADDR_ID'),
+                    'ADDRESS_LEGAL': company_data.get('ADDRESS_LEGAL'),
+                    'REG_ADDRESS': company_data.get('REG_ADDRESS'),
+                    'REG_ADDRESS_2': company_data.get('REG_ADDRESS_2'),
+                    'REG_ADDRESS_CITY': company_data.get('REG_ADDRESS_CITY'),
+                    'REG_ADDRESS_POSTAL_CODE': company_data.get('REG_ADDRESS_POSTAL_CODE'),
+                    'REG_ADDRESS_REGION': company_data.get('REG_ADDRESS_REGION'),
+                    'REG_ADDRESS_PROVINCE': company_data.get('REG_ADDRESS_PROVINCE'),
+                    'REG_ADDRESS_COUNTRY': company_data.get('REG_ADDRESS_COUNTRY'),
+                    'REG_ADDRESS_COUNTRY_CODE': company_data.get('REG_ADDRESS_COUNTRY_CODE'),
+                    'REG_ADDRESS_LOC_ADDR_ID': company_data.get('REG_ADDRESS_LOC_ADDR_ID'),
+                    'LAST_ACTIVITY_BY': company_data.get('LAST_ACTIVITY_BY'),
+                    'UF_CRM_1729153192833': company_data.get('UF_CRM_1729153192833'),
+                }
+                
+                company_details_list.append(filtered_company_data)
+            else:
+                company_details_list.append({'error': 'Error fetching company'
+                                             f'{company_id}: {response.text}'})
+
+        return Response(company_details_list, status=200)
 
 
 class AuthStatusView(APIView):
@@ -263,7 +446,6 @@ def schema_view(request):
     with open('schema.yaml', 'r') as f:
         schema = yaml.safe_load(f)
     return HttpResponse(yaml.dump(schema), content_type='application/yaml')
-
 
 
 3.user
@@ -294,9 +476,79 @@ class CustomUserAdmin(admin.ModelAdmin):
 admin.site.register(CustomUser, CustomUserAdmin)
 
 Требуется дополнение функциональности:
-Добавление нового метода обращения к нашему серверу
-метод GET возвращает информацию с адреса https://b-p24.ru/rest/7/j68ajra78vwc09x2/crm.contact.get.json?id=9 где id=9 нужно получить из модели пользователя, из поля contactId в зависимости от того, какой пользователь обраается к серверу.
-медод должен быть доступен по адресу /api/v1/hooks/users_me_contact/
+Добавление нового класса UserCompanyDocuments, по которому пользователь сможет получить
+документы на свою компанию, нужна дополнительная проверка что компания принадлжежит клиенту и он 
+не сможет получить доступ к документам чужой компании
 
-адрес https://b-p24.ru/rest/7/j68ajra78vwc09x2/crm.contact.get.json?id=9 является вебхуком. В него должны подставляться токен (который мы пока будем хранить в глобальной переменной) и contactId из нашей таблицы пользователей.
-вебхук доступен всегда и не требует авторизации. 
+пример хука, который будет использоваться https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/disk.folder.getchildren.json?id=124
+
+Получение документов из папки, соответствующей компании. В сущности компания в поле `UF_CRM_1729153192833` лежит ID папки. По этому ID обращаемся в методе `disk.folder.getchildren.json`. 
+
+Ответ будет примерно таким
+{
+    "result": [
+      {
+        "ID": "125",
+        "NAME": "Налоги.txt",
+        "CODE": null,
+        "STORAGE_ID": "21",
+        "TYPE": "file",
+        "PARENT_ID": "124",
+        "DELETED_TYPE": "0",
+        "GLOBAL_CONTENT_VERSION": "1",
+        "FILE_ID": "211",
+        "SIZE": "0",
+        "CREATE_TIME": "2024-10-17T09:18:32+00:00",
+        "UPDATE_TIME": "2024-10-17T09:18:32+00:00",
+        "DELETE_TIME": null,
+        "CREATED_BY": "7",
+        "UPDATED_BY": "7",
+        "DELETED_BY": "0",
+        "DOWNLOAD_URL": "https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/download/?token=disk%7CaWQ9MTI1Jl89aHljRXV0MjNwWGRKRkZkWGc1RFdHTlpDeWxScDBWMGc%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTFKbDg5YUhsalJYVjBNak53V0dSS1JrWmtXR2MxUkZkSFRscERlV3hTY0RCV01HYz18N3xiN2NkMXR3d2Y1emUyaTJrIg%3D%3D.uF3V5o%2FYsLcvipYEX7YCy48DOBpfxu7IexI7wzGNSAs%3D",
+        "DETAIL_URL": "https://b-p24.ru/docs/disk-klientskiy/file/ОГО _Тестовая_/ОГО _Тестовая_/Налоги.txt"
+      },
+      {
+        "ID": "126",
+        "NAME": "Сотрудники.xlsx",
+        "CODE": null,
+        "STORAGE_ID": "21",
+        "TYPE": "file",
+        "PARENT_ID": "124",
+        "DELETED_TYPE": "0",
+        "GLOBAL_CONTENT_VERSION": "1",
+        "FILE_ID": "212",
+        "SIZE": "6560",
+        "CREATE_TIME": "2024-10-17T09:25:10+00:00",
+        "UPDATE_TIME": "2024-10-17T09:25:10+00:00",
+        "DELETE_TIME": null,
+        "CREATED_BY": "7",
+        "UPDATED_BY": "7",
+        "DELETED_BY": "0",
+        "DOWNLOAD_URL": "https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/download/?token=disk%7CaWQ9MTI2Jl89ampiN3prc291YWpNTUxhU0Q4WUZmNUJwTklXMHFVbWI%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTJKbDg5YW1waU4zcHJjMjkxWVdwTlRVeGhVMFE0V1VabU5VSndUa2xYTUhGVmJXST18N3xiN2NkMXR3d2Y1emUyaTJrIg%3D%3D.Uo72pO76%2F3yTWuz3oj%2FLDPVCy8pRdBHNWapacgVThJo%3D",
+        "DETAIL_URL": "https://b-p24.ru/docs/disk-klientskiy/file/ОГО _Тестовая_/ОГО _Тестовая_/Сотрудники.xlsx"
+      }
+    ],
+    "total": 2,
+    "time": {
+      "start": 1729157117.739499,
+      "finish": 1729157117.768222,
+      "duration": 0.02872300148010254,
+      "processing": 0.005236148834228516,
+      "date_start": "2024-10-17T09:25:17+00:00",
+      "date_finish": "2024-10-17T09:25:17+00:00"
+    }
+  }
+
+  но из него нужно убрать поля
+
+  - `ID`
+  - `STORAGE_ID`
+  - `PARENT_ID`
+  - `FILE_ID`
+  - `CREATED_BY`
+  - `UPDATED_BY`
+  - `DELETED_BY`
+
+и блок time 
+
+все остальные поля нужно оставить, а также сохранить путь обращения к ним через result чтобы не переделывать фронтенд приложение 

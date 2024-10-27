@@ -1,6 +1,7 @@
 from django.urls import path, include
 from .views import (AuthStatusView, UserViewSet, UserContactView,
-                    UserManagerView, UserCompaniesView, UserCompanyDetailsView)
+                    UserManagerView, UserCompaniesView, UserCompanyDetailsView,
+                    UserCompanyDocumentsView)
 from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
@@ -29,5 +30,9 @@ urlpatterns = [
      path('v1/hooks/user_me_company/',
           UserCompanyDetailsView.as_view(),
           name='user-company-details'),
+     path('v1/hooks/user_company_documents/',
+          UserCompanyDocumentsView.as_view(),
+          name='user-company-documents'),
      path('', include(router.urls)),
+
 ]
