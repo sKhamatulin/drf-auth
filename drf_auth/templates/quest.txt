@@ -214,7 +214,8 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/urls.py
 from django.urls import path, include
 from .views import (AuthStatusView, UserViewSet, UserContactView,
-                    UserManagerView, UserCompaniesView, UserCompanyDetailsView)
+                    UserManagerView, UserCompaniesView, UserCompanyDetailsView,
+                    UserCompanyDocumentsView)
 from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
@@ -243,18 +244,25 @@ urlpatterns = [
      path('v1/hooks/user_me_company/',
           UserCompanyDetailsView.as_view(),
           name='user-company-details'),
+     path('v1/hooks/user_company_documents/',
+          UserCompanyDocumentsView.as_view(),
+          name='user-company-documents'),
      path('', include(router.urls)),
+
 ]
 
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/api/views.py
 import requests
+
+from django.urls import reverse
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from djoser.views import UserViewSet as BaseUserViewSet
 
-from django.http import HttpResponse
 import yaml
 
 from .serializers import UserSerializer
@@ -273,8 +281,8 @@ class UserContactView(APIView):
         if not user.contactId:
             return Response({'error': 'contactId not found.'}, status=400)
 
-        contact_id = user.contactId
-        # contact_id = 7
+        # contact_id = user.contactId
+        contact_id = 11
 
         url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={contact_id}'
 
@@ -319,36 +327,32 @@ class UserManagerView(APIView):
         data = user_contact_view.get(request).data
         assigned_by_id = data.get('result', {}).get('ASSIGNED_BY_ID')
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={assigned_by_id}'
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/user.get.json?id={assigned_by_id}'
 
         response = requests.get(url)
 
-        response_data = response.json().get('result', [])
+        # data = response.json().get('result', {})
 
-        filtered_results = []
-        
-        for item in response_data:
-            filtered_item = {
-                'ID': item.get('ID'),
-                'ACTIVE': item.get('ACTIVE'),
-                'NAME': item.get('NAME'),
-                'LAST_NAME': item.get('LAST_NAME'),
-                'SECOND_NAME': item.get('SECOND_NAME'),
-                'TITLE': item.get('TITLE'),
-                'IS_ONLINE': item.get('IS_ONLINE'),
-                'PERSONAL_PROFESSION': item.get('PERSONAL_PROFESSION'),
-                'PERSONAL_GENDER': item.get('PERSONAL_GENDER'),
-                'PERSONAL_BIRTHDAY': item.get('PERSONAL_BIRTHDAY'),
-                'PERSONAL_CITY': item.get('PERSONAL_CITY'),
-                'PERSONAL_STATE': item.get('PERSONAL_STATE'),
-                'UF_EMPLOYMENT_DATE': item.get('UF_EMPLOYMENT_DATE'),
-                'UF_DEPARTMENT': item.get('UF_DEPARTMENT'),
-            }
-            filtered_results.append(filtered_item)
+        # filtered_data = {
+        #     'ID': data.get('ID'),
+        #     'ACTIVE': data.get('ACTIVE'),
+        #     'NAME': data.get('NAME'),
+        #     'LAST_NAME': data.get('LAST_NAME'),
+        #     'SECOND_NAME': data.get('SECOND_NAME'),
+        #     'TITLE': data.get('TITLE'),
+        #     'IS_ONLINE': data.get('IS_ONLINE'),
+        #     'PERSONAL_PROFESSION': data.get('PERSONAL_PROFESSION'),
+        #     'PERSONAL_GENDER': data.get('PERSONAL_GENDER'),
+        #     'PERSONAL_BIRTHDAY': data.get('PERSONAL_BIRTHDAY'),
+        #     'PERSONAL_CITY': data.get('PERSONAL_CITY'),
+        #     'PERSONAL_STATE': data.get('PERSONAL_STATE'),
+        #     'UF_EMPLOYMENT_DATE': data.get('UF_EMPLOYMENT_DATE'),
+        #     'UF_DEPARTMENT': data.get('UF_DEPARTMENT'),
+        # }
 
-        return Response({'result': filtered_results,
-                         'total': len(filtered_results)},
-                        status=response.status_code)
+        # return Response({'result': filtered_data}, status=response.status_code)
+
+        return Response(response.json(), status=response.status_code)
 
 
 class UserCompaniesView(APIView):
@@ -382,7 +386,7 @@ class UserCompanyDetailsView(APIView):
 
             if response.status_code == 200:
                 company_data = response.json().get('result', {})
-                
+
                 filtered_company_data = {
                     'COMPANY_TYPE': company_data.get('COMPANY_TYPE'),
                     'TITLE': company_data.get('TITLE'),
@@ -421,13 +425,59 @@ class UserCompanyDetailsView(APIView):
                     'LAST_ACTIVITY_BY': company_data.get('LAST_ACTIVITY_BY'),
                     'UF_CRM_1729153192833': company_data.get('UF_CRM_1729153192833'),
                 }
-                
+
                 company_details_list.append(filtered_company_data)
             else:
                 company_details_list.append({'error': 'Error fetching company'
                                              f'{company_id}: {response.text}'})
 
         return Response(company_details_list, status=200)
+
+
+class UserCompanyDocumentsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        user_companies_view = UserCompanyDetailsView()
+        print(user_companies_view)
+        companies_response = user_companies_view.get(request)
+        companies_data = companies_response.data
+
+        if not companies_data:
+            return Response({"error": "No associated companies found."},
+                            status=404)
+
+        company = companies_data[0]  # Берем первую компанию пользователя
+        folder_id = company.get('UF_CRM_1729153192833')
+
+        if not folder_id:
+            return Response({"error": "Folder ID not found in company data."},
+                            status=400)
+
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        response = requests.get(url)
+        response_data = response.json()
+
+        documents = response_data.get('result', [])
+        if not documents:
+            return Response({"error": "No documents found in the company folder."},
+                            status=404)
+
+        document_list = [
+            {
+                'ID': doc.get('ID'),
+                'NAME': doc.get('NAME'),
+                'TYPE': doc.get('TYPE'),
+                'DOWNLOAD_URL': doc.get('DOWNLOAD_URL'),
+                'SIZE': doc.get('SIZE'),
+                'CREATE_TIME': doc.get('CREATE_TIME'),
+                'UPDATE_TIME': doc.get('UPDATE_TIME'),
+            }
+            for doc in documents
+        ]
+
+        return Response({"documents": document_list}, status=200)
 
 
 class AuthStatusView(APIView):
@@ -446,7 +496,6 @@ def schema_view(request):
     with open('schema.yaml', 'r') as f:
         schema = yaml.safe_load(f)
     return HttpResponse(yaml.dump(schema), content_type='application/yaml')
-
 
 3.user
 /Users/sergeykhamatulin/Dev/AuthorIT/intizar/drf-auth/drf-auth/drf_auth/user/models.py
@@ -476,79 +525,30 @@ class CustomUserAdmin(admin.ModelAdmin):
 admin.site.register(CustomUser, CustomUserAdmin)
 
 Требуется дополнение функциональности:
-Добавление нового класса UserCompanyDocuments, по которому пользователь сможет получить
-документы на свою компанию, нужна дополнительная проверка что компания принадлжежит клиенту и он 
-не сможет получить доступ к документам чужой компании
 
-пример хука, который будет использоваться https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/disk.folder.getchildren.json?id=124
+метод get класса UserCompanyDocumentsView возвращает такой массив
 
-Получение документов из папки, соответствующей компании. В сущности компания в поле `UF_CRM_1729153192833` лежит ID папки. По этому ID обращаемся в методе `disk.folder.getchildren.json`. 
-
-Ответ будет примерно таким
 {
-    "result": [
-      {
-        "ID": "125",
-        "NAME": "Налоги.txt",
-        "CODE": null,
-        "STORAGE_ID": "21",
-        "TYPE": "file",
-        "PARENT_ID": "124",
-        "DELETED_TYPE": "0",
-        "GLOBAL_CONTENT_VERSION": "1",
-        "FILE_ID": "211",
-        "SIZE": "0",
-        "CREATE_TIME": "2024-10-17T09:18:32+00:00",
-        "UPDATE_TIME": "2024-10-17T09:18:32+00:00",
-        "DELETE_TIME": null,
-        "CREATED_BY": "7",
-        "UPDATED_BY": "7",
-        "DELETED_BY": "0",
-        "DOWNLOAD_URL": "https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/download/?token=disk%7CaWQ9MTI1Jl89aHljRXV0MjNwWGRKRkZkWGc1RFdHTlpDeWxScDBWMGc%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTFKbDg5YUhsalJYVjBNak53V0dSS1JrWmtXR2MxUkZkSFRscERlV3hTY0RCV01HYz18N3xiN2NkMXR3d2Y1emUyaTJrIg%3D%3D.uF3V5o%2FYsLcvipYEX7YCy48DOBpfxu7IexI7wzGNSAs%3D",
-        "DETAIL_URL": "https://b-p24.ru/docs/disk-klientskiy/file/ОГО _Тестовая_/ОГО _Тестовая_/Налоги.txt"
-      },
-      {
-        "ID": "126",
-        "NAME": "Сотрудники.xlsx",
-        "CODE": null,
-        "STORAGE_ID": "21",
-        "TYPE": "file",
-        "PARENT_ID": "124",
-        "DELETED_TYPE": "0",
-        "GLOBAL_CONTENT_VERSION": "1",
-        "FILE_ID": "212",
-        "SIZE": "6560",
-        "CREATE_TIME": "2024-10-17T09:25:10+00:00",
-        "UPDATE_TIME": "2024-10-17T09:25:10+00:00",
-        "DELETE_TIME": null,
-        "CREATED_BY": "7",
-        "UPDATED_BY": "7",
-        "DELETED_BY": "0",
-        "DOWNLOAD_URL": "https://b-p24.ru/rest/7/b7cd1twwf5ze2i2k/download/?token=disk%7CaWQ9MTI2Jl89ampiN3prc291YWpNTUxhU0Q4WUZmNUJwTklXMHFVbWI%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTJKbDg5YW1waU4zcHJjMjkxWVdwTlRVeGhVMFE0V1VabU5VSndUa2xYTUhGVmJXST18N3xiN2NkMXR3d2Y1emUyaTJrIg%3D%3D.Uo72pO76%2F3yTWuz3oj%2FLDPVCy8pRdBHNWapacgVThJo%3D",
-        "DETAIL_URL": "https://b-p24.ru/docs/disk-klientskiy/file/ОГО _Тестовая_/ОГО _Тестовая_/Сотрудники.xlsx"
-      }
-    ],
-    "total": 2,
-    "time": {
-      "start": 1729157117.739499,
-      "finish": 1729157117.768222,
-      "duration": 0.02872300148010254,
-      "processing": 0.005236148834228516,
-      "date_start": "2024-10-17T09:25:17+00:00",
-      "date_finish": "2024-10-17T09:25:17+00:00"
-    }
-  }
+    "documents": [
+        {
+            "ID": "125",
+            "NAME": "Налоги.txt",
+            "TYPE": "file",
+            "DOWNLOAD_URL": "https://b-p24.ru/rest/7/tuzwh9ecszs0jhhc/download/?token=disk%7CaWQ9MTI1Jl89bDlsOTBzTXZVS3JyMFppNjYyclNJTGVKUTBoS2JxVTA%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTFKbDg5YkRsc09UQnpUWFpWUzNKeU1GcHBOall5Y2xOSlRHVktVVEJvUzJKeFZUQT18N3x0dXp3aDllY3N6czBqaGhjIg%3D%3D.axhyTKz%2BJYvcUSNSDfISP%2Fd2tFwjjHiv0ZALb%2Fovkr4%3D",
+            "SIZE": "0",
+            "CREATE_TIME": "2024-10-17T09:18:32+00:00",
+            "UPDATE_TIME": "2024-10-17T09:18:32+00:00"
+        },
+        {
+            "ID": "126",
+            "NAME": "Сотрудники.xlsx",
+            "TYPE": "file",
+            "DOWNLOAD_URL": "https://b-p24.ru/rest/7/tuzwh9ecszs0jhhc/download/?token=disk%7CaWQ9MTI2Jl89bWFYVlhGOXhDRDFwVTVmQXB1ejNlR2Y3OThSS1pUdDM%3D%7CImRvd25sb2FkfGRpc2t8YVdROU1USTJKbDg5YldGWVZsaEdPWGhEUkRGd1ZUVm1RWEIxZWpObFIyWTNPVGhTUzFwVWRETT18N3x0dXp3aDllY3N6czBqaGhjIg%3D%3D.Fuql8vktxI02RBmmL0OBIGrdLXU5VHVKBxd4bEKGZ0k%3D",
+            "SIZE": "6560",
+            "CREATE_TIME": "2024-10-17T09:25:10+00:00",
+            "UPDATE_TIME": "2024-10-17T09:25:10+00:00"
+        }
+    ]
+}
 
-  но из него нужно убрать поля
-
-  - `ID`
-  - `STORAGE_ID`
-  - `PARENT_ID`
-  - `FILE_ID`
-  - `CREATED_BY`
-  - `UPDATED_BY`
-  - `DELETED_BY`
-
-и блок time 
-
-все остальные поля нужно оставить, а также сохранить путь обращения к ним через result чтобы не переделывать фронтенд приложение 
+В ссылках на скачивание есть секретные значения веб-хука, которые я не хотел бы показывать пользователю. Как мне это спрятать, но дать пользователю возможность загружать документы 

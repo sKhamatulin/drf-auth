@@ -1,11 +1,12 @@
 import requests
 
+from django.http import HttpResponse
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from djoser.views import UserViewSet as BaseUserViewSet
 
-from django.http import HttpResponse
 import yaml
 
 from .serializers import UserSerializer
@@ -24,8 +25,8 @@ class UserContactView(APIView):
         if not user.contactId:
             return Response({'error': 'contactId not found.'}, status=400)
 
-        contact_id = user.contactId
-        # contact_id = 7
+        # contact_id = user.contactId
+        contact_id = 11
 
         url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={contact_id}'
 
@@ -70,36 +71,32 @@ class UserManagerView(APIView):
         data = user_contact_view.get(request).data
         assigned_by_id = data.get('result', {}).get('ASSIGNED_BY_ID')
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={assigned_by_id}'
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/user.get.json?id={assigned_by_id}'
 
         response = requests.get(url)
 
-        response_data = response.json().get('result', [])
+        # data = response.json().get('result', {})
 
-        filtered_results = []
-        
-        for item in response_data:
-            filtered_item = {
-                'ID': item.get('ID'),
-                'ACTIVE': item.get('ACTIVE'),
-                'NAME': item.get('NAME'),
-                'LAST_NAME': item.get('LAST_NAME'),
-                'SECOND_NAME': item.get('SECOND_NAME'),
-                'TITLE': item.get('TITLE'),
-                'IS_ONLINE': item.get('IS_ONLINE'),
-                'PERSONAL_PROFESSION': item.get('PERSONAL_PROFESSION'),
-                'PERSONAL_GENDER': item.get('PERSONAL_GENDER'),
-                'PERSONAL_BIRTHDAY': item.get('PERSONAL_BIRTHDAY'),
-                'PERSONAL_CITY': item.get('PERSONAL_CITY'),
-                'PERSONAL_STATE': item.get('PERSONAL_STATE'),
-                'UF_EMPLOYMENT_DATE': item.get('UF_EMPLOYMENT_DATE'),
-                'UF_DEPARTMENT': item.get('UF_DEPARTMENT'),
-            }
-            filtered_results.append(filtered_item)
+        # filtered_data = {
+        #     'ID': data.get('ID'),
+        #     'ACTIVE': data.get('ACTIVE'),
+        #     'NAME': data.get('NAME'),
+        #     'LAST_NAME': data.get('LAST_NAME'),
+        #     'SECOND_NAME': data.get('SECOND_NAME'),
+        #     'TITLE': data.get('TITLE'),
+        #     'IS_ONLINE': data.get('IS_ONLINE'),
+        #     'PERSONAL_PROFESSION': data.get('PERSONAL_PROFESSION'),
+        #     'PERSONAL_GENDER': data.get('PERSONAL_GENDER'),
+        #     'PERSONAL_BIRTHDAY': data.get('PERSONAL_BIRTHDAY'),
+        #     'PERSONAL_CITY': data.get('PERSONAL_CITY'),
+        #     'PERSONAL_STATE': data.get('PERSONAL_STATE'),
+        #     'UF_EMPLOYMENT_DATE': data.get('UF_EMPLOYMENT_DATE'),
+        #     'UF_DEPARTMENT': data.get('UF_DEPARTMENT'),
+        # }
 
-        return Response({'result': filtered_results,
-                         'total': len(filtered_results)},
-                        status=response.status_code)
+        # return Response({'result': filtered_data}, status=response.status_code)
+
+        return Response(response.json(), status=response.status_code)
 
 
 class UserCompaniesView(APIView):
@@ -133,7 +130,7 @@ class UserCompanyDetailsView(APIView):
 
             if response.status_code == 200:
                 company_data = response.json().get('result', {})
-                
+
                 filtered_company_data = {
                     'COMPANY_TYPE': company_data.get('COMPANY_TYPE'),
                     'TITLE': company_data.get('TITLE'),
@@ -172,7 +169,7 @@ class UserCompanyDetailsView(APIView):
                     'LAST_ACTIVITY_BY': company_data.get('LAST_ACTIVITY_BY'),
                     'UF_CRM_1729153192833': company_data.get('UF_CRM_1729153192833'),
                 }
-                
+
                 company_details_list.append(filtered_company_data)
             else:
                 company_details_list.append({'error': 'Error fetching company'
@@ -181,47 +178,85 @@ class UserCompanyDetailsView(APIView):
         return Response(company_details_list, status=200)
 
 
+# class UserCompanyDocumentsView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+
+#         user_companies_view = UserCompanyDetailsView()
+#         print(user_companies_view)
+#         companies_response = user_companies_view.get(request)
+#         companies_data = companies_response.data
+
+#         if not companies_data:
+#             return Response({"error": "No associated companies found."},
+#                             status=404)
+
+#         company = companies_data[0]  # Берем первую компанию пользователя
+#         folder_id = company.get('UF_CRM_1729153192833')
+
+#         if not folder_id:
+#             return Response({"error": "Folder ID not found in company data."},
+#                             status=400)
+
+#         url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+#         response = requests.get(url)
+#         response_data = response.json()
+
+#         documents = response_data.get('result', [])
+#         if not documents:
+#             return Response({"error": "No documents found in the company folder."},
+#                             status=404)
+
+#         document_list = [
+#             {
+#                 'ID': doc.get('ID'),
+#                 'NAME': doc.get('NAME'),
+#                 'TYPE': doc.get('TYPE'),
+#                 'DOWNLOAD_URL': doc.get('DOWNLOAD_URL'),
+#                 'SIZE': doc.get('SIZE'),
+#                 'CREATE_TIME': doc.get('CREATE_TIME'),
+#                 'UPDATE_TIME': doc.get('UPDATE_TIME'),
+#             }
+#             for doc in documents
+#         ]
+
+#         return Response({"documents": document_list}, status=200)
+
+
 class UserCompanyDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-
-        user_companies_view = UserCompaniesView()
+        user_companies_view = UserCompanyDetailsView()
         companies_response = user_companies_view.get(request)
-        companies_data = companies_response.data.get('result', [])
-        
+        companies_data = companies_response.data
+
         if not companies_data:
-            return Response({"error": "No associated companies found."},
-                            status=404)
-        
+            return Response({"error": "No associated companies found."}, status=404)
+
         company = companies_data[0]  # Берем первую компанию пользователя
         folder_id = company.get('UF_CRM_1729153192833')
-        assigned_by_id = company.get('ASSIGNED_BY_ID')
 
         if not folder_id:
-            return Response({"error": "Folder ID not found in company data."},
-                            status=400)
-        
-        if str(request.user.id) != str(assigned_by_id):
-            return Response({"error": "Access to documents denied."},
-                            status=403)
+            return Response({"error": "Folder ID not found in company data."}, status=400)
 
         url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
         response = requests.get(url)
         response_data = response.json()
-
+        base_url = request.build_absolute_uri('/api/v1/hooks/downloadfile')
 
         documents = response_data.get('result', [])
         if not documents:
-            return Response({"error": "No documents found in the company folder."},
-                            status=404)
-        
+            return Response({"error": "No documents found in the company folder."}, status=404)
+
         document_list = [
             {
                 'ID': doc.get('ID'),
                 'NAME': doc.get('NAME'),
                 'TYPE': doc.get('TYPE'),
-                'DOWNLOAD_URL': doc.get('DOWNLOAD_URL'),
+                'DOWNLOAD_URL_OLD': doc.get('DOWNLOAD_URL'),
+                'DOWNLOAD_URL': f"{base_url}/{folder_id}/{doc.get('ID')}",
                 'SIZE': doc.get('SIZE'),
                 'CREATE_TIME': doc.get('CREATE_TIME'),
                 'UPDATE_TIME': doc.get('UPDATE_TIME'),
@@ -230,6 +265,34 @@ class UserCompanyDocumentsView(APIView):
         ]
 
         return Response({"documents": document_list}, status=200)
+
+
+class DownloadFileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, folder_id, file_id):
+        # Получение информации о файле
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        response = requests.get(url)
+        response_data = response.json()
+        print('response_data = ' + str(response_data))
+
+        document = next((doc for doc in response_data.get('result', []) if doc.get('ID') == file_id), None)
+
+        if not document:
+            return Response({"error": "Document not found."}, status=404)
+
+        download_url = document.get('DOWNLOAD_URL')
+        print('download_url = ' + str(download_url))
+
+        # Загружаем файл с Bitrix24
+        file_response = requests.get(download_url)
+        print('file_response = ' + str(file_response))
+
+        # Возвращаем файл пользователю
+        return HttpResponse(file_response.content, content_type=file_response.headers['Content-Type'], headers={
+            'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
+        })
 
 
 class AuthStatusView(APIView):

@@ -1,7 +1,7 @@
 from django.urls import path, include
 from .views import (AuthStatusView, UserViewSet, UserContactView,
                     UserManagerView, UserCompaniesView, UserCompanyDetailsView,
-                    UserCompanyDocumentsView)
+                    UserCompanyDocumentsView, DownloadFileView)
 from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
@@ -33,6 +33,9 @@ urlpatterns = [
      path('v1/hooks/user_company_documents/',
           UserCompanyDocumentsView.as_view(),
           name='user-company-documents'),
+     path('v1/hooks/downloadfile/<str:folder_id>/<str:file_id>/',
+          DownloadFileView.as_view(),
+          name='download-file'),
      path('', include(router.urls)),
 
 ]
