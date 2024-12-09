@@ -28,7 +28,8 @@ INSTALLED_APPS = [
     'djoser',
     'drf_yasg',
     'corsheaders',
-    'user'
+    'user',
+    'services'
 ]
 
 MIDDLEWARE = [

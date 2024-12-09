@@ -1,10 +1,17 @@
 from django.urls import path, include
-from .views import (AuthStatusView, UserViewSet, UserContactView,
-                    UserManagerView, UserCompaniesView, UserCompanyDetailsView,
-                    UserCompanyDocumentsView, DownloadFileView)
+from .views import (
+     AuthStatusView, UserViewSet, UserContactView,
+     UserManagerView, UserCompaniesView, UserCompanyDetailsView,
+     UserCompanyDocumentsView, DownloadFileView,
+     UserServiceCreateView, UserServiceStatusUpdateView,
+     UserServiceExpirationCheckView,
+)
 from rest_framework.routers import DefaultRouter
 
 app_name = 'api'
+
+
+
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
@@ -37,5 +44,13 @@ urlpatterns = [
           DownloadFileView.as_view(),
           name='download-file'),
      path('', include(router.urls)),
-
+     path('user-service/create/',
+          UserServiceCreateView.as_view(),
+          name='user-service-create'),
+     path('user-service/<int:user_service_id>/update-status/',
+          UserServiceStatusUpdateView.as_view(),
+          name='user-service-update-status'),
+     path('user-service/check-expiration/',
+          UserServiceExpirationCheckView.as_view(),
+          name='user-service-check-expiration'),
 ]

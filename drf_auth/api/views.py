@@ -2,14 +2,19 @@ import requests
 
 from django.http import HttpResponse
 
+from drf_yasg.utils import swagger_auto_schema
+
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from djoser.views import UserViewSet as BaseUserViewSet
+
+from services.models import UserService, Service
 
 import yaml
 
-from .serializers import UserSerializer
+from .serializers import UserSerializer, UserServiceSerializer
 
 
 WEBHOOK_TOKEN = 'tuzwh9ecszs0jhhc'
@@ -167,7 +172,8 @@ class UserCompanyDetailsView(APIView):
                     'REG_ADDRESS_COUNTRY_CODE': company_data.get('REG_ADDRESS_COUNTRY_CODE'),
                     'REG_ADDRESS_LOC_ADDR_ID': company_data.get('REG_ADDRESS_LOC_ADDR_ID'),
                     'LAST_ACTIVITY_BY': company_data.get('LAST_ACTIVITY_BY'),
-                    'UF_CRM_1729153192833': company_data.get('UF_CRM_1729153192833'),
+                    'UF_CRM_ASSIGNED_FOLDER': company_data.get('UF_CRM_ASSIGNED_FOLDER'),
+                    'UF_CRM_COMPANY_INN': company_data.get('UF_CRM_COMPANY_INN'),
                 }
 
                 company_details_list.append(filtered_company_data)
@@ -176,52 +182,6 @@ class UserCompanyDetailsView(APIView):
                                              f'{company_id}: {response.text}'})
 
         return Response(company_details_list, status=200)
-
-
-# class UserCompanyDocumentsView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-
-#         user_companies_view = UserCompanyDetailsView()
-#         print(user_companies_view)
-#         companies_response = user_companies_view.get(request)
-#         companies_data = companies_response.data
-
-#         if not companies_data:
-#             return Response({"error": "No associated companies found."},
-#                             status=404)
-
-#         company = companies_data[0]  # Берем первую компанию пользователя
-#         folder_id = company.get('UF_CRM_1729153192833')
-
-#         if not folder_id:
-#             return Response({"error": "Folder ID not found in company data."},
-#                             status=400)
-
-#         url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
-#         response = requests.get(url)
-#         response_data = response.json()
-
-#         documents = response_data.get('result', [])
-#         if not documents:
-#             return Response({"error": "No documents found in the company folder."},
-#                             status=404)
-
-#         document_list = [
-#             {
-#                 'ID': doc.get('ID'),
-#                 'NAME': doc.get('NAME'),
-#                 'TYPE': doc.get('TYPE'),
-#                 'DOWNLOAD_URL': doc.get('DOWNLOAD_URL'),
-#                 'SIZE': doc.get('SIZE'),
-#                 'CREATE_TIME': doc.get('CREATE_TIME'),
-#                 'UPDATE_TIME': doc.get('UPDATE_TIME'),
-#             }
-#             for doc in documents
-#         ]
-
-#         return Response({"documents": document_list}, status=200)
 
 
 class UserCompanyDocumentsView(APIView):
@@ -236,7 +196,7 @@ class UserCompanyDocumentsView(APIView):
             return Response({"error": "No associated companies found."}, status=404)
 
         company = companies_data[0]  # Берем первую компанию пользователя
-        folder_id = company.get('UF_CRM_1729153192833')
+        folder_id = company.get('UF_CRM_ASSIGNED_FOLDER')
 
         if not folder_id:
             return Response({"error": "Folder ID not found in company data."}, status=400)
@@ -293,6 +253,122 @@ class DownloadFileView(APIView):
         return HttpResponse(file_response.content, content_type=file_response.headers['Content-Type'], headers={
             'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
         })
+
+
+class UserServiceCreateView(APIView):
+    """
+        Подключение услуги
+        Ограничил только на Админа. Далее переделаем на стаф
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @swagger_auto_schema(
+        operation_description="Создание связи между пользователем и услугой",
+        responses={
+            201: UserServiceSerializer,
+            400: 'Bad request',
+            404: 'Service not found',
+        },
+        request_body=UserServiceSerializer
+    )
+    def post(self, request):
+        service_id = request.data.get('service_id')
+        end_date = request.data.get('end_date')
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response({"error": "Service not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if UserService.objects.filter(user=request.user,
+                                      service=service).exists():
+            return Response({"error":
+                             "User is already connected to this service."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        user_service = UserService.objects.create(
+            user=request.user,
+            service=service,
+            status='active',
+            end_date=end_date
+        )
+
+        return Response(UserServiceSerializer(user_service).data,
+                        status=status.HTTP_201_CREATED)
+
+
+class UserServiceStatusUpdateView(APIView):
+    """
+        Обновление статуса услуги 'active', 'blocked', 'expired'
+        Ограничил только на Админа. Далее переделаем на стаф
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @swagger_auto_schema(
+        operation_description="Обновление статуса",
+        responses={
+            201: UserServiceSerializer,
+            400: 'Bad request',
+            404: 'Service not found',
+        },
+        request_body=UserServiceSerializer
+    )
+    def patch(self, request, user_service_id):
+        try:
+            user_service = UserService.objects.get(id=user_service_id,
+                                                   user=request.user)
+        except UserService.DoesNotExist:
+            return Response({"error": "User service not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Получаем новый статус из запроса
+        new_status = request.data.get('status')
+        if new_status not in ['active', 'blocked', 'expired']:
+            return Response({"error": "Invalid status."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Обновляем статус услуги
+        user_service.status = new_status
+        user_service.save()
+
+        return Response(UserServiceSerializer(user_service).data,
+                        status=status.HTTP_200_OK)
+
+
+class UserServiceExpirationCheckView(APIView):
+    """
+    Отбирает только активные услуги.
+    Проверяет срок их действия, если истекли меняет статус на expired
+    Возвращает только те, которые остаются активными.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Получение списка услуг",
+        responses={
+            201: UserServiceSerializer,
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
+    def get(self, request):
+
+        user_services = UserService.objects.filter(user=request.user,
+                                                   status='active')
+
+        active_services = []
+
+        for user_service in user_services:
+            user_service.check_status()
+            if user_service.status == 'active':
+                active_services.append(user_service)
+
+        # Возвращаем только активные услуги
+        return Response({"active_services":
+                        [UserServiceSerializer(us).data
+                            for us in active_services]},
+                        status=status.HTTP_200_OK)
 
 
 class AuthStatusView(APIView):
