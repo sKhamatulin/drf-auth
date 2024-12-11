@@ -33,7 +33,8 @@ class UserContactView(APIView):
         # contact_id = user.contactId
         contact_id = 11
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.get.json?id={contact_id}'
+        url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               f'crm.contact.get.json?id={contact_id}')
 
         response = requests.get(url)
 
@@ -76,30 +77,10 @@ class UserManagerView(APIView):
         data = user_contact_view.get(request).data
         assigned_by_id = data.get('result', {}).get('ASSIGNED_BY_ID')
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/user.get.json?id={assigned_by_id}'
+        url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               f'user.get.json?id={assigned_by_id}')
 
         response = requests.get(url)
-
-        # data = response.json().get('result', {})
-
-        # filtered_data = {
-        #     'ID': data.get('ID'),
-        #     'ACTIVE': data.get('ACTIVE'),
-        #     'NAME': data.get('NAME'),
-        #     'LAST_NAME': data.get('LAST_NAME'),
-        #     'SECOND_NAME': data.get('SECOND_NAME'),
-        #     'TITLE': data.get('TITLE'),
-        #     'IS_ONLINE': data.get('IS_ONLINE'),
-        #     'PERSONAL_PROFESSION': data.get('PERSONAL_PROFESSION'),
-        #     'PERSONAL_GENDER': data.get('PERSONAL_GENDER'),
-        #     'PERSONAL_BIRTHDAY': data.get('PERSONAL_BIRTHDAY'),
-        #     'PERSONAL_CITY': data.get('PERSONAL_CITY'),
-        #     'PERSONAL_STATE': data.get('PERSONAL_STATE'),
-        #     'UF_EMPLOYMENT_DATE': data.get('UF_EMPLOYMENT_DATE'),
-        #     'UF_DEPARTMENT': data.get('UF_DEPARTMENT'),
-        # }
-
-        # return Response({'result': filtered_data}, status=response.status_code)
 
         return Response(response.json(), status=response.status_code)
 
@@ -107,12 +88,21 @@ class UserManagerView(APIView):
 class UserCompaniesView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="ХУК. Список компаний",
+        responses={
+            201: 'crm.contact.company.items.get',
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
     def get(self, request):
         user_contact_view = UserContactView()
         data = user_contact_view.get(request).data
         user_id = data.get('result', {}).get('ID')
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.contact.company.items.get.json?id={user_id}'
+        url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               f'crm.contact.company.items.get.json?id={user_id}')
 
         response = requests.get(url)
 
@@ -122,6 +112,14 @@ class UserCompaniesView(APIView):
 class UserCompanyDetailsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="ХУК. 1-ая компания",
+        responses={
+            201: 'crm.company.get',
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
     def get(self, request):
         user_companies_view = UserCompaniesView()
         companies_response = user_companies_view.get(request)
@@ -130,7 +128,8 @@ class UserCompanyDetailsView(APIView):
         company_details_list = []
 
         for company_id in company_id_list:
-            url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/crm.company.get.json?id={company_id}'
+            url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+                   f'crm.company.get.json?id={company_id}')
             response = requests.get(url)
 
             if response.status_code == 200:
@@ -160,7 +159,7 @@ class UserCompanyDetailsView(APIView):
                     'ADDRESS_PROVINCE': company_data.get('ADDRESS_PROVINCE'),
                     'ADDRESS_COUNTRY': company_data.get('ADDRESS_COUNTRY'),
                     'ADDRESS_COUNTRY_CODE': company_data.get('ADDRESS_COUNTRY_CODE'),
-                    'ADDRESS_LOC_ADDR_ID': company_data.get('ADDRESS_LOC_ADDR_ID'),
+                    'ADDRESS_LOC_ADDR_ID': company_data .get('ADDRESS_LOC_ADDR_ID'),
                     'ADDRESS_LEGAL': company_data.get('ADDRESS_LEGAL'),
                     'REG_ADDRESS': company_data.get('REG_ADDRESS'),
                     'REG_ADDRESS_2': company_data.get('REG_ADDRESS_2'),
@@ -187,28 +186,41 @@ class UserCompanyDetailsView(APIView):
 class UserCompanyDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="ХУК. Документы (Список)",
+        responses={
+            201: 'disk.folder.getchildren',
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
     def get(self, request):
         user_companies_view = UserCompanyDetailsView()
         companies_response = user_companies_view.get(request)
         companies_data = companies_response.data
 
         if not companies_data:
-            return Response({"error": "No associated companies found."}, status=404)
+            return Response({"error": "No associated companies found."},
+                            status=404)
 
         company = companies_data[0]  # Берем первую компанию пользователя
         folder_id = company.get('UF_CRM_ASSIGNED_FOLDER')
 
         if not folder_id:
-            return Response({"error": "Folder ID not found in company data."}, status=400)
+            return Response({"error": "Folder ID not found in company data."},
+                            status=400)
 
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               f'disk.folder.getchildren.json?id={folder_id}')
         response = requests.get(url)
         response_data = response.json()
         base_url = request.build_absolute_uri('/api/v1/hooks/downloadfile')
 
         documents = response_data.get('result', [])
         if not documents:
-            return Response({"error": "No documents found in the company folder."}, status=404)
+            return Response({"error":
+                             "No documents found in the company folder."},
+                            status=404)
 
         document_list = [
             {
@@ -230,9 +242,18 @@ class UserCompanyDocumentsView(APIView):
 class DownloadFileView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="ХУК. Документы (Скачинвание)",
+        responses={
+            201: 'disk.folder.getchildren',
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
     def get(self, request, folder_id, file_id):
         # Получение информации о файле
-        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               'disk.folder.getchildren.json?id={folder_id}')
         response = requests.get(url)
         response_data = response.json()
         print('response_data = ' + str(response_data))
@@ -243,16 +264,18 @@ class DownloadFileView(APIView):
             return Response({"error": "Document not found."}, status=404)
 
         download_url = document.get('DOWNLOAD_URL')
-        print('download_url = ' + str(download_url))
+        # print('download_url = ' + str(download_url))
 
         # Загружаем файл с Bitrix24
         file_response = requests.get(download_url)
-        print('file_response = ' + str(file_response))
+        # print('file_response = ' + str(file_response))
 
         # Возвращаем файл пользователю
-        return HttpResponse(file_response.content, content_type=file_response.headers['Content-Type'], headers={
-            'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
-        })
+        return HttpResponse(file_response.content,
+                            content_type=file_response.headers['Content-Type'],
+                            headers={
+                                'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
+                            })
 
 
 class UserServiceCreateView(APIView):
