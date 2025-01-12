@@ -253,29 +253,60 @@ class DownloadFileView(APIView):
     def get(self, request, folder_id, file_id):
         # Получение информации о файле
         url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
-               'disk.folder.getchildren.json?id={folder_id}')
+               f'disk.folder.getchildren.json?id={folder_id}')
         response = requests.get(url)
         response_data = response.json()
-        print('response_data = ' + str(response_data))
 
         document = next((doc for doc in response_data.get('result', []) if doc.get('ID') == file_id), None)
 
         if not document:
             return Response({"error": "Document not found."}, status=404)
 
-        download_url = document.get('DOWNLOAD_URL')
-        # print('download_url = ' + str(download_url))
+        type = document.get('TYPE')
+        
+        if type == 'folder':
+            folder_id = document.get('ID')
+            url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
+               f'disk.folder.getchildren.json?id={folder_id}')
+            response = requests.get(url)
+            response_data = response.json()
+            base_url = request.build_absolute_uri('/api/v1/hooks/downloadfile')
 
-        # Загружаем файл с Bitrix24
-        file_response = requests.get(download_url)
-        # print('file_response = ' + str(file_response))
+            documents = response_data.get('result', [])
+            if not documents:
+                return Response({"error":
+                                    "No documents found in the company folder."},
+                                status=404)
 
-        # Возвращаем файл пользователю
-        return HttpResponse(file_response.content,
-                            content_type=file_response.headers['Content-Type'],
-                            headers={
-                                'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
-                            })
+            document_list = [
+                {
+                    'ID': doc.get('ID'),
+                    'NAME': doc.get('NAME'),
+                    'TYPE': doc.get('TYPE'),
+                    'DOWNLOAD_URL_OLD': doc.get('DOWNLOAD_URL'),
+                    'DOWNLOAD_URL': f"{base_url}/{folder_id}/{doc.get('ID')}",
+                    'SIZE': doc.get('SIZE'),
+                    'CREATE_TIME': doc.get('CREATE_TIME'),
+                    'UPDATE_TIME': doc.get('UPDATE_TIME'),
+                }
+                for doc in documents
+            ]
+
+            return Response({"documents": document_list}, status=200)
+        else:
+            download_url = document.get('DOWNLOAD_URL')
+
+            # Загружаем файл с Bitrix24
+            file_response = requests.get(download_url)
+            if file_response.status_code != 200:
+                return Response({"error": "Failed to download the file."}, status=400)
+
+            # Возвращаем файл пользователю
+            return HttpResponse(file_response.content,
+                                content_type=file_response.headers['Content-Type'],
+                                headers={
+                                    'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
+                                })
 
 
 class UserServiceCreateView(APIView):
