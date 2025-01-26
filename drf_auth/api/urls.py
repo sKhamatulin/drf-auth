@@ -4,7 +4,7 @@ from .views import (
      UserManagerView, UserCompaniesView, UserCompanyDetailsView,
      UserCompanyDocumentsView, DownloadFileView,
      UserServiceCreateView, UserServiceStatusUpdateView,
-     UserServiceExpirationCheckView,
+     UserServiceExpirationCheckView, UserUploadDocumentView,
 )
 from rest_framework.routers import DefaultRouter
 
@@ -40,6 +40,9 @@ urlpatterns = [
      path('v1/hooks/downloadfile/<str:folder_id>/<str:file_id>/',
           DownloadFileView.as_view(),
           name='download-file'),
+     path('v1/hooks/upload_user_file/',
+          UserUploadDocumentView.as_view(),
+          name='upload-user-file'),
      path('', include(router.urls)),
      path('user-service/create/',
           UserServiceCreateView.as_view(),
