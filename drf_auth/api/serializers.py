@@ -34,3 +34,8 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = ['id', 'name', 'provider', 'price']
+
+
+class UploadDocumentSerializer(serializers.Serializer):
+    fileContent = serializers.CharField()
+    fileName = serializers.CharField()

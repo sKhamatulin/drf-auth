@@ -629,3 +629,112 @@ class UserService(models.Model):
             self.save()
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Возможные правки по скачиванию файлов
+
+
+class DownloadFileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="ХУК. Документы (Скачивание)",
+        responses={
+            201: 'disk.folder.getchildren',
+            400: 'Bad request',
+            404: 'Service not found',
+        }
+    )
+    def get(self, request, folder_id, file_id):
+        document = self.get_document(folder_id, file_id)
+        if not document:
+            return Response({"error": "Document not found."}, status=404)
+
+        if document.get('TYPE') == 'folder':
+            return self.handle_folder(document, folder_id, request)
+        else:
+            return self.download_file(document)
+
+    def get_document(self, folder_id, file_id):
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        response = requests.get(url)
+        if response.status_code != 200:
+            return None
+
+        response_data = response.json()
+        return next((doc for doc in response_data.get('result', []) if doc.get('ID') == file_id), None)
+
+    def handle_folder(self, folder_document, folder_id, request):
+        documents = self.get_documents_in_folder(folder_id)
+        if not documents:
+            return Response({"error": "No documents found in the company folder."}, status=404)
+
+        base_url = request.build_absolute_uri('/api/v1/hooks/downloadfile')
+        document_list = [
+            {
+                'ID': doc.get('ID'),
+                'NAME': doc.get('NAME'),
+                'TYPE': doc.get('TYPE'),
+                'DOWNLOAD_URL': f"{base_url}/{folder_id}/{doc.get('ID')}",
+                'SIZE': doc.get('SIZE'),
+                'CREATE_TIME': doc.get('CREATE_TIME'),
+                'UPDATE_TIME': doc.get('UPDATE_TIME'),
+            }
+            for doc in documents
+        ]
+
+        return Response({"documents": document_list}, status=200)
+
+    def get_documents_in_folder(self, folder_id):
+        url = f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/disk.folder.getchildren.json?id={folder_id}'
+        response = requests.get(url)
+        if response.status_code != 200:
+            return []
+
+        response_data = response.json()
+        return response_data.get('result', [])
+
+    def download_file(self, document):
+        download_url = document.get('DOWNLOAD_URL')
+        file_response = requests.get(download_url)
+        if file_response.status_code != 200:
+            return Response({"error": "Failed to download the file."}, status=400)
+
+        return HttpResponse(
+            file_response.content,
+            content_type=file_response.headers['Content-Type'],
+            headers={
+                'Content-Disposition': f'attachment; filename="{document["NAME"]}"'
+            }
+        )
+
