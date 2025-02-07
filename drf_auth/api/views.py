@@ -1,4 +1,5 @@
 import requests
+import base64
 
 from django.http import HttpResponse
 
@@ -307,65 +308,6 @@ class DownloadFileView(APIView):
                                 })
 
 
-# class UserUploadDocumentView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     @swagger_auto_schema(
-#         operation_description="Загрузка пользовательского документа",
-#         request_body={
-#             'type': 'object',
-#             'properties': {
-#                 'fileContent': {'type': 'string', 'description': 'Содержимое файла'},
-#                 'fileName': {'type': 'string', 'description': 'Имя файла'},
-#             },
-#             'required': ['fileContent', 'fileName']
-#         },
-#         responses={
-#             200: 'Файл успешно загружен',
-#             400: 'Ошибка при загрузке файла',
-#             404: 'Папка "Пользовательские документы" не найдена',
-#         }
-#     )
-
-#     def post(self, request):
-#             # Получаем содержимое файла и имя файла из запроса
-#             file_content = request.data.get('fileContent')
-#             file_name = request.data.get('fileName')
-
-#             if not file_content or not file_name:
-#                 return Response({"error": "fileContent and fileName are required."}, status=400)
-
-#             # Получаем ID папки "Пользовательские документы"
-#             user_company_documents_view = UserCompanyDocumentsView()
-#             folder_response = user_company_documents_view.get(request)
-#             folder_data = folder_response.data
-
-#             user_documents_folder = next((doc for doc in folder_data.get('documents', []) if doc.get('NAME') == 'Пользовательские документы'), None)
-
-#             if not user_documents_folder:
-#                 return Response({"error": "User documents folder not found."}, status=404)
-
-#             folder_id = user_documents_folder.get('ID')
-
-#             # Формируем URL для загрузки файла
-#             url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
-#                 f'disk.folder.uploadfile.json?id={folder_id}&data[NAME]={file_name}&fileContent={file_content}')
-
-#             # Выполняем запрос на загрузку файла
-#             response = requests.post(url)
-#             response_data = response.json()
-
-#             if 'error' in response_data:
-#                 return Response({"error": response_data['error']}, status=400)
-
-#             # Удаляем ненужные поля из ответа
-#             result = response_data.get('result', {})
-#             for key in ['ID', 'STORAGE_ID', 'PARENT_ID', 'DELETED_TYPE', 'FILE_ID', 'CREATED_BY', 'UPDATED_BY', 'DELETED_BY', 'DETAIL_URL']:
-#                 result.pop(key, None)
-
-#             return Response({"result": result}, status=201)
-
-
 class UserUploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -391,6 +333,13 @@ class UserUploadDocumentView(APIView):
         if ';' in file_content:
             content_type = file_content.split(';')[0].split(':')[1]
             file_content = file_content.split(',')[1]  # Извлекаем только base64 часть
+            # file_format = content_type.split('/')[1] # feture
+
+        # Декодируем base64 в бинарные данные
+        try:
+            file_content = base64.b64decode(file_content)
+        except Exception as e:
+            return Response({"error": f"Invalid base64 data: {str(e)}"}, status=400)
 
         # Получаем ID папки "Пользовательские документы"
         user_company_documents_view = UserCompanyDocumentsView()
@@ -406,17 +355,31 @@ class UserUploadDocumentView(APIView):
 
         # Формируем URL для загрузки файла
         url = (f'https://b-p24.ru/rest/{B24_USER_ID}/{WEBHOOK_TOKEN}/'
-               f'disk.folder.uploadfile.json?id={folder_id}&data[NAME]={file_name}&fileContent={file_content}')
+               f'disk.folder.uploadfile.json?id={folder_id}&data[NAME]={file_name}')
 
-        # Выполняем запрос на загрузку файла
+        # Выполняем запрос на получение uploadUrl
         response = requests.post(url)
         response_data = response.json()
 
         if 'error' in response_data:
             return Response({"error": response_data['error']}, status=400)
+        
+        # Получаем uploadUrl из ответа
+        upload_url = response_data['result']['uploadUrl']
+        
+        files = {
+            'file': (file_name, file_content, content_type)
+        }
+
+        # Выполняем запрос на загрузку файла по uploadUrl
+        upload_response = requests.post(upload_url, files=files)
+        upload_response_data = upload_response.json()
+
+        if 'error' in upload_response_data:
+            return Response({"error": upload_response_data['error']}, status=400)
 
         # Удаляем ненужные поля из ответа
-        result = response_data.get('result', {})
+        result = upload_response_data.get('result', {})
         for key in ['STORAGE_ID', 'PARENT_ID', 'DELETED_TYPE', 'FILE_ID', 'CREATED_BY', 'UPDATED_BY', 'DELETED_BY', 'DETAIL_URL']:
             result.pop(key, None)
 
