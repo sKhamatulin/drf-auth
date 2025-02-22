@@ -30,7 +30,9 @@ INSTALLED_APPS = [
     'drf_yasg',
     'corsheaders',
     'user',
-    'services'
+    'services',
+    'channels',
+    'chat'
 ]
 
 MIDDLEWARE = [
@@ -66,6 +68,18 @@ CORS_ORIGIN_ALLOW_ALL = True
 CORS_URLS_REGEX = r'^/api/.*$'
 
 WSGI_APPLICATION = 'drf_auth.wsgi.application'
+ASGI_APPLICATION = 'drf_auth.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",  # Для разработки
+        # Для продакшна используйте Redis:
+        # "BACKEND": "channels_redis.core.RedisChannelLayer",
+        # "CONFIG": {
+        #     "hosts": [("127.0.0.1", 6379)],
+        # },
+    },
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
