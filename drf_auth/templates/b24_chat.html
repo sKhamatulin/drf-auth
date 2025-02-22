@@ -16,7 +16,7 @@
         // Подключение к WebSocket
         const chatRoomId = {{ chat_room_id }};
         const clientId = {{ client_id }};  // Используем client_id из CustomUser
-        const socket = io(`ws://your-backend-url/ws/chat/${chatRoomId}/`);
+        const socket = io(`ws://intizar.pythonanywhere.com/ws/chat/${chatRoomId}/`);
 
         // Обработка входящих сообщений
         socket.on('chat_message', (data) => {
