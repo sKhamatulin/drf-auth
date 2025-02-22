@@ -1,4 +1,3 @@
-# chat/views.py
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -44,7 +43,7 @@ def b24_chat_view(request, chat_room_id):
     Веб-вью для отображения чата в Bitrix24.
     """
     chat_room = ChatRoom.objects.get(id=chat_room_id)
-    return render(request, 'chat/b24_chat.html', {
+    return render(request, 'templates/b24_chat.html', {
         'chat_room_id': chat_room.id,
         'b24_user_id': chat_room.b24_user_id,
         'client_id': request.user.client_id,  # Используем client_id из CustomUser
