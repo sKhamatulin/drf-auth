@@ -1,6 +1,6 @@
 anyio==3.6.2
 asgiref==3.7.2
-backports.zoneinfo==0.2.1
+# backports.zoneinfo==0.2.1
 certifi==2024.7.4
 cffi==1.15.1
 channels==4.0.0
@@ -29,7 +29,6 @@ httpcore==0.17.2
 httptools==0.5.0
 httpx==0.24.1
 idna==3.7
-importlib-metadata==1.7.0
 inflection==0.5.1
 itsdangerous==2.1.2
 itypes==1.2.0

@@ -1,5 +1,6 @@
-# chat/serializers.py
 from rest_framework import serializers
+
+from api.serializers import UserSerializer
 from .models import ChatRoom, Message
 
 
@@ -9,7 +10,7 @@ class MessageSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Message
-        fields = ['id', 'sender_type', 'client_id', 'content', 'timestamp']
+        fields = ['id', 'sender_type', 'contactId', 'content', 'timestamp']
 
 
 class ChatRoomSerializer(serializers.ModelSerializer):
@@ -18,6 +19,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     Включает связанные сообщения.
     """
     messages = MessageSerializer(many=True, read_only=True)
+    user = UserSerializer(read_only=True)
 
     class Meta:
         model = ChatRoom

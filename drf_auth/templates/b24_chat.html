@@ -15,13 +15,13 @@
     <script>
         // Подключение к WebSocket
         const chatRoomId = {{ chat_room_id }};
-        const clientId = {{ client_id }};  // Используем client_id из CustomUser
-        const socket = io(`ws://intizar.pythonanywhere.com/ws/chat/${chatRoomId}/`);
+        const contactId = {{ contactId }};  // Используем contactId из CustomUser
+        const socket = io(`ws://127.0.0.1:8000/ws/chat/${chatRoomId}/`);
 
         // Обработка входящих сообщений
         socket.on('chat_message', (data) => {
             const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML += `<div><strong>${data.sender_type} (${data.client_id}):</strong> ${data.message}</div>`;
+            messagesDiv.innerHTML += `<div><strong>${data.sender_type} (${data.contactId}):</strong> ${data.message}</div>`;
         });
 
         // Отправка сообщения
@@ -32,7 +32,7 @@
                 socket.emit('message', {
                     message: message,
                     sender_type: 'b24',  // Тип отправителя (b24)
-                    client_id: clientId,  // Используем client_id из CustomUser
+                    contactId: contactId,  // Используем contactId из CustomUser
                 });
                 messageInput.value = '';
             }

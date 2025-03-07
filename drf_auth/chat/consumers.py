@@ -1,4 +1,3 @@
-# chat/consumers.py
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .models import ChatRoom, Message
@@ -28,14 +27,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
         sender_type = text_data_json['sender_type']
-        client_id = text_data_json['client_id']  # Используем client_id из CustomUser
+        contactId = text_data_json['contactId']  # Используем contactId из CustomUser
 
         # Сохраняем сообщение в базе данных
         chat_room = await ChatRoom.objects.aget(id=self.chat_room_id)
         await Message.objects.acreate(
             chat_room=chat_room,
             sender_type=sender_type,
-            client_id=client_id,
+            contactId=contactId,
             content=message
         )
 
@@ -46,7 +45,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'chat_message',
                 'message': message,
                 'sender_type': sender_type,
-                'client_id': client_id,
+                'contactId': contactId,
             }
         )
 
@@ -54,11 +53,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         message = event['message']
         sender_type = event['sender_type']
-        client_id = event['client_id']
+        contactId = event['contactId']
 
         # Отправляем сообщение обратно в WebSocket
         await self.send(text_data=json.dumps({
             'message': message,
             'sender_type': sender_type,
-            'client_id': client_id,
+            'contactId': contactId,
         }))

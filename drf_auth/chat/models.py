@@ -1,4 +1,3 @@
-# chat/models.py
 from django.db import models
 from django.conf import settings
 from user.models import CustomUser
@@ -22,9 +21,9 @@ class Message(models.Model):
     """
     chat_room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
     sender_type = models.CharField(max_length=10, choices=[('user', 'User'), ('b24', 'Bitrix24')])  # Тип отправителя
-    client_id = models.CharField(max_length=100)  # Идентификатор клиента (client_id из CustomUser или b24_user_id)
+    contactId = models.CharField(max_length=100)  # Идентификатор клиента (contactId из CustomUser или b24_user_id)
     content = models.TextField()  # Текст сообщения
     timestamp = models.DateTimeField(auto_now_add=True)  # Время отправки сообщения
 
     def __str__(self):
-        return f"Message from {self.sender_type} ({self.client_id}): {self.content[:50]}"
+        return f"Message from {self.sender_type} ({self.contactId}): {self.content[:50]}"
